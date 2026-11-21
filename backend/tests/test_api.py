@@ -409,3 +409,35 @@ async def test_422_no_history(mock_llm, client):
     # Session should not exist.
     hist = await client.get("/sessions/s-422/messages")
     assert hist.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 16. Failed key attempts logged with logger.warning
+# ═══════════════════════════════════════════════════════════════════════════
+
+@patch("app.llm_gateway.logger.warning")
+@patch("app.llm_gateway.litellm.acompletion", new_callable=AsyncMock)
+async def test_failed_key_logging(mock_llm, mock_logger, client):
+    mock_llm.return_value = _mock_response("Recovered via key_2.", 10, 3)
+
+    resp = await client.post(
+        "/chat",
+        json={"session_id": "s-log-test", "message": "Test logging"},
+        headers={"X-Simulate-Failure": "key_1=429"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["metadata"]["key_id"] == "key_2"
+
+    # Verify logger.warning was called for key_1
+    assert mock_logger.called
+    warning_args = mock_logger.call_args[0]
+    # Check that key_id, exception class, status code are logged
+    assert "key_1" in warning_args
+    assert "RateLimitError" in warning_args
+    assert 429 in warning_args
+
+    # Verify the raw api key is NEVER logged
+    full_log_str = " ".join(str(a) for a in warning_args)
+    assert "fake-key-1" not in full_log_str
+    assert "fake-key-2" not in full_log_str
+

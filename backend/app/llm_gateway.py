@@ -14,6 +14,7 @@ Design
 
 from __future__ import annotations
 
+import logging
 import os
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 os.environ.setdefault("LITELLM_TELEMETRY", "False")
@@ -35,6 +36,8 @@ from litellm.exceptions import (
 )
 
 from app import config
+
+logger = logging.getLogger(__name__)
 
 # ── Cache setup (runs once at import) ────────────────────────────────────────
 litellm.cache = Cache(type="local")
@@ -102,30 +105,39 @@ def _parse_simulation_header(header: Optional[str]) -> dict[str, int]:
 def _raise_simulated(status: int, key_id: str) -> None:
     """Raise the LiteLLM exception corresponding to *status*."""
     model = config.settings.llm_model
+    exc: Exception
     if status == 429:
-        raise RateLimitError(
+        exc = RateLimitError(
             message=f"Simulated 429 for {key_id}",
             model=model,
             llm_provider="simulated",
         )
     elif status == 500:
-        raise InternalServerError(
+        exc = InternalServerError(
             message=f"Simulated 500 for {key_id}",
             model=model,
             llm_provider="simulated",
         )
     elif status == 502:
-        raise ServiceUnavailableError(
+        exc = ServiceUnavailableError(
             message=f"Simulated 502 for {key_id}",
             model=model,
             llm_provider="simulated",
         )
     elif status == 503:
-        raise ServiceUnavailableError(
+        exc = ServiceUnavailableError(
             message=f"Simulated 503 for {key_id}",
             model=model,
             llm_provider="simulated",
         )
+    else:
+        exc = ServiceUnavailableError(
+            message=f"Simulated error {status} for {key_id}",
+            model=model,
+            llm_provider="simulated",
+        )
+    exc.status_code = status
+    raise exc
 
 
 # ── Custom cache key (model + messages only, NOT api_key) ────────────────────
@@ -315,6 +327,26 @@ async def chat_completion(
             Timeout,
             APIConnectionError,
         ) as exc:
+            status_code = getattr(exc, "status_code", None)
+            if status_code is None:
+                if isinstance(exc, RateLimitError):
+                    status_code = 429
+                elif isinstance(exc, InternalServerError):
+                    status_code = 500
+                elif isinstance(exc, ServiceUnavailableError):
+                    status_code = 503
+                elif isinstance(exc, Timeout):
+                    status_code = 504
+                else:
+                    status_code = 502
+
+            logger.warning(
+                "Key attempt failed - key_id: %s, exception: %s, status_code: %s, message: %s",
+                key_id,
+                exc.__class__.__name__,
+                status_code,
+                str(exc)[:200],
+            )
             last_exc = exc
             fallback_attempts += 1
             continue
