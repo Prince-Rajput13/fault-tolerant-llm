@@ -36,6 +36,10 @@ class Settings(BaseSettings):
         default=False,
         description="When true, honour the X-Simulate-Failure header.",
     )
+    mock_completion: bool = Field(
+        default=False,
+        description="When true, simulate realistic LLM replies locally without outbound API calls.",
+    )
 
     # --- Prompts --------------------------------------------------------------
     default_system_prompt: str = Field(
