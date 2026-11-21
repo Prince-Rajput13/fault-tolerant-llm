@@ -37,8 +37,9 @@ from litellm.exceptions import (
     AuthenticationError,
     BadRequestError,
 )
-
 from app import config
+
+litellm.drop_params = True
 
 logger = logging.getLogger(__name__)
 
@@ -279,7 +280,6 @@ async def chat_completion(
                 model=model,
                 messages=messages,
                 api_key=api_key,
-                temperature=0,
                 timeout=_REQUEST_TIMEOUT,
                 **extra_kwargs,
             )
