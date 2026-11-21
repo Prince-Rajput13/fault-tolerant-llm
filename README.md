@@ -30,10 +30,9 @@ flowchart TD
 
 ## 1. Live URLs
 
-- **Frontend Application (Vercel)**: `https://fault-tolerant-llm.vercel.app` *(or your custom live URL)*
-- **Backend API Base (Render / Railway / Fly.io)**: `https://fault-tolerant-llm.onrender.com` *(or your custom live URL)*
-- **Health Check Endpoint**: `https://fault-tolerant-llm.onrender.com/health`
-- **Interactive OpenAPI Documentation (Swagger UI)**: `https://fault-tolerant-llm.onrender.com/docs`
+- **Frontend Application (Vercel)**: `https://fault-tolerant-llm.vercel.app/`
+- **Backend API Base (Railway)**: `https://fault-tolerant-llm-production.up.railway.app`
+- **Health Check Endpoint**: `https://fault-tolerant-llm-production.up.railway.app/health`
 
 ---
 
