@@ -11,6 +11,7 @@ Responsibilities
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -23,6 +24,8 @@ from app.config import settings
 from app.db import init_db, close_db
 from app.llm_gateway import AllProvidersUnavailable
 from app.routes import health, chat, sessions
+
+logger = logging.getLogger(__name__)
 
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
@@ -88,6 +91,7 @@ async def _http_exception(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def _unhandled(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s", request.url.path)
     # Never leak internals.
     return JSONResponse(
         status_code=500,

@@ -33,6 +33,9 @@ from litellm.exceptions import (
     InternalServerError,
     Timeout,
     APIConnectionError,
+    NotFoundError,
+    AuthenticationError,
+    BadRequestError,
 )
 
 from app import config
@@ -326,27 +329,47 @@ async def chat_completion(
             InternalServerError,
             Timeout,
             APIConnectionError,
+            NotFoundError,
+            AuthenticationError,
+            BadRequestError,
         ) as exc:
             status_code = getattr(exc, "status_code", None)
             if status_code is None:
                 if isinstance(exc, RateLimitError):
                     status_code = 429
+                elif isinstance(exc, AuthenticationError):
+                    status_code = 401
+                elif isinstance(exc, NotFoundError):
+                    status_code = 404
+                elif isinstance(exc, BadRequestError):
+                    status_code = 400
                 elif isinstance(exc, InternalServerError):
                     status_code = 500
                 elif isinstance(exc, ServiceUnavailableError):
                     status_code = 503
                 elif isinstance(exc, Timeout):
                     status_code = 504
-                else:
+                elif isinstance(exc, APIConnectionError):
                     status_code = 502
+                else:
+                    status_code = 500
 
-            logger.warning(
-                "Key attempt failed - key_id: %s, exception: %s, status_code: %s, message: %s",
-                key_id,
-                exc.__class__.__name__,
-                status_code,
-                str(exc)[:200],
-            )
+            short_msg = str(exc)[:200]
+            if short_msg:
+                logger.warning(
+                    "%s failed: %s %s - %s",
+                    key_id,
+                    exc.__class__.__name__,
+                    status_code,
+                    short_msg,
+                )
+            else:
+                logger.warning(
+                    "%s failed: %s %s",
+                    key_id,
+                    exc.__class__.__name__,
+                    status_code,
+                )
             last_exc = exc
             fallback_attempts += 1
             continue

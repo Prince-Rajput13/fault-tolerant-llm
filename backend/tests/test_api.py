@@ -431,7 +431,7 @@ async def test_failed_key_logging(mock_llm, mock_logger, client):
     # Verify logger.warning was called for key_1
     assert mock_logger.called
     warning_args = mock_logger.call_args[0]
-    # Check that key_id, exception class, status code are logged
+    # Check that key_id, exception class, status code are logged in "key_N failed: <Class> <status>" format
     assert "key_1" in warning_args
     assert "RateLimitError" in warning_args
     assert 429 in warning_args
@@ -440,4 +440,54 @@ async def test_failed_key_logging(mock_llm, mock_logger, client):
     full_log_str = " ".join(str(a) for a in warning_args)
     assert "fake-key-1" not in full_log_str
     assert "fake-key-2" not in full_log_str
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 17. AuthenticationError / NotFoundError / BadRequestError fail over to next key
+# ═══════════════════════════════════════════════════════════════════════════
+
+@patch("app.llm_gateway.logger.warning")
+@patch("app.llm_gateway.litellm.acompletion", new_callable=AsyncMock)
+async def test_auth_error_failover(mock_llm, mock_logger, client):
+    from litellm.exceptions import AuthenticationError
+
+    # key_1 fails with AuthenticationError, key_2 succeeds
+    auth_err = AuthenticationError(message="Invalid API Key", model="gemini/gemini-2.5-flash", llm_provider="gemini")
+    auth_err.status_code = 401
+    mock_llm.side_effect = [auth_err, _mock_response("Success on key_2", 10, 3)]
+
+    resp = await client.post(
+        "/chat",
+        json={"session_id": "s-auth-fo", "message": "Hello"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["metadata"]["key_id"] == "key_2"
+    assert resp.json()["metadata"]["fallback_attempts"] == 1
+
+    # Check that key_1 failure was logged
+    warning_args = mock_logger.call_args[0]
+    assert "key_1" in warning_args
+    assert "AuthenticationError" in warning_args
+    assert 401 in warning_args
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 18. Global exception handler logs unhandled error with request path
+# ═══════════════════════════════════════════════════════════════════════════
+
+@patch("app.main.logger.exception")
+@patch("app.routes.health.db_reachable", new_callable=AsyncMock)
+async def test_global_exception_handler_logging(mock_db, mock_logger, client):
+    mock_db.side_effect = RuntimeError("Catastrophic database crash")
+
+    resp = await client.get("/health")
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": "internal server error"}
+
+    # Verify logger.exception was called with request.url.path
+    assert mock_logger.called
+    log_args = mock_logger.call_args[0]
+    assert "Unhandled error on %s" in log_args[0]
+    assert "/health" in log_args
+
 

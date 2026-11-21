@@ -46,7 +46,7 @@ async def client(_env):
 
     try:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=main.app),
+            transport=httpx.ASGITransport(app=main.app, raise_app_exceptions=False),
             base_url="http://test",
         ) as ac:
             yield ac
