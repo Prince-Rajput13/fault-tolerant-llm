@@ -1,31 +1,35 @@
-.PHONY: up down build test-backend test-frontend test clean
+.PHONY: up down logs test test-backend test-frontend build clean
 
-# Start both backend and frontend via Docker Compose
+# Start both backend and frontend via Docker Compose in detached mode
 up:
 	docker compose up --build -d
 
-# Stop all running services
+# Stop all running containers
 down:
 	docker compose down
 
-# Rebuild images without starting
-build:
-	docker compose build
-
-# Run backend unit tests
-test-backend:
-	cd backend && python -m pytest tests/ -v
-
-# Run frontend tests
-test-frontend:
-	cd frontend && npm test
+# Follow real-time service logs
+logs:
+	docker compose logs -f
 
 # Run all test suites
 test: test-backend test-frontend
 
-# Clean up build artifacts and temporary databases
+# Run backend unit & integration tests
+test-backend:
+	cd backend && python -m pytest tests/ -v
+
+# Run frontend unit & contract tests
+test-frontend:
+	cd frontend && npm test
+
+# Rebuild container images without starting
+build:
+	docker compose build
+
+# Clean up containers, volumes, and caches
 clean:
-	docker compose down -v
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	find . -type d -name ".pytest_cache" -exec rm -rf {} +
-	find . -type f -name "*.db" -delete
+	docker compose down -v --remove-orphans
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.db" -delete 2>/dev/null || true
